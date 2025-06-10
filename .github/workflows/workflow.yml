@@ -1,0 +1,47 @@
+name: PR Code Scan
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - master
+      - main
+      - test
+  workflow_dispatch:
+
+jobs:
+  scan_pr_code:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the repository code
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Step 2: Install Email Dependencies
+      - name: Install Email Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y msmtp mutt
+
+      # Step 3: Set up Checkmarx One CLI
+      - name: Set up Checkmarx One CLI
+        run: |
+          CX_VERSION="2.3.13"
+          wget "https://github.com/Checkmarx/ast-cli/releases/download/${CX_VERSION}/ast-cli_${CX_VERSION}_linux_x64.tar.gz"
+          tar -xvzf ast-cli_${CX_VERSION}_linux_x64.tar.gz
+          chmod +x cx
+          sudo mv cx /usr/local/bin/
+
+      # Step 4: Make your scan script executable
+      - name: Make Script Executable
+        run: chmod +x git-secret-scanner.sh
+
+      # Step 5: Run the Scan Script
+      - name: Run Scan Script
+        run: bash ./git-secret-scanner.sh "https://github.com/hirendgithub/ADO-Project.git" "${{ github.head_ref || github.ref_name }}"
+
+      # Step 6: Report the results
+      - name: Report Scan Results
+        run: |
+          echo "Pull Request code scan completed. Check workflow logs for details."
