@@ -20,14 +20,15 @@ jobs:
 
       # Step 2: Install Email Dependencies
       - name: Install Email Dependencies
+        
         run: |
-          sudo apt-get update
           sudo apt-get install -y msmtp mutt
 
       # Step 3: Set up Checkmarx One CLI
       - name: Set up Checkmarx One CLI
+                 
         run: |
-          CX_VERSION="2.3.13"
+          CX_VERSION="2.3.21"
           wget "https://github.com/Checkmarx/ast-cli/releases/download/${CX_VERSION}/ast-cli_${CX_VERSION}_linux_x64.tar.gz"
           tar -xvzf ast-cli_${CX_VERSION}_linux_x64.tar.gz
           chmod +x cx
@@ -39,7 +40,20 @@ jobs:
 
       # Step 5: Run the Scan Script
       - name: Run Scan Script
-        run: bash ./git-secret-scanner.sh "https://github.com/hirendgithub/PBookstore.git" "${{ github.head_ref || github.ref_name }}"
+        run: bash ./git-secret-scanner.sh "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "${{ github.head_ref || github.ref_name }}"
+        env:
+          ACCOUNT: ${{secrets.ACCOUNT}}
+          HOST: ${{secrets.HOST}}
+          PORT: ${{secrets.PORT}}
+          SENDER_EMAIL: ${{secrets.SENDER_EMAIL}}
+          SENDER_EMAIL_USERNAME: ${{secrets.SENDER_EMAIL_USERNAME}}
+          SENDER_EMAIL_PASSWORD: ${{secrets.SENDER_EMAIL_PASSWORD}}
+          ACCOUNT_DEFAULT: ${{secrets.ACCOUNT_DEFAULT}}
+          RECIPIENT_EMAIL: ${{secrets.RECIPIENT_EMAIL}}
+          CX_BASE_URL: ${{secrets.CX_BASE_URL}}
+          CX_BASE_AUTH_URL: ${{secrets.CX_BASE_AUTH_URL}}
+          CX_TENANT_NAME: ${{secrets.CX_TENANT_NAME}}
+          CX_API_KEY: ${{secrets.CX_ONE_API_KEY}}
 
       # Step 6: Report the results
       - name: Report Scan Results

@@ -1,36 +1,42 @@
 #!/bin/bash
 
-# Disable automatic CRLF conversion by Git for this repository
-git config --global core.autocrlf false
-
-# Exit immediately if a command exits with a non-zero status
 set -e
-# Exit if any command in a pipeline fails
 set -o pipefail
 
 CLI="cx"
 REPO_URL="$1"
 BRANCH_NAME="$2"
-
-# Check if REPO_URL is provided
+ACCOUNT="$ACCOUNT"
+HOST="$HOST"
+PORT="$PORT"
+SENDER_EMAIL="$SENDER_EMAIL"
+SENDER_EMAIL_USERNAME="$SENDER_EMAIL_USERNAME"
+SENDER_EMAIL_PASSWORD="$SENDER_EMAIL_PASSWORD"
+ACCOUNT_DEFAULT="$ACCOUNT_DEFAULT"
+RECIPIENT_EMAIL="$RECIPIENT_EMAIL"
+CX_BASE_URL="$CX_BASE_URL"
+CX_BASE_AUTH_URL="$CX_BASE_AUTH_URL"
+CX_TENANT_NAME="$CX_TENANT_NAME"
+CX_API_KEY="$CX_API_KEY"
+ 
 if [ -z "$REPO_URL" ]; then
-  echo "Error: REPO_URL not provided"
+  echo " Error: REPO_URL not provided"
   exit 1
 fi
+echo -e "account: $ACCOUNT\nhost: $HOST\nport: $PORT\nfrom: $SENDER_EMAIL\nuser: $SENDER_EMAIL_USERNAME\npassword: $SENDER_EMAIL_PASSWORD"
 
-echo "Repo URL: $REPO_URL"
-echo "Branch Name: $BRANCH_NAME"
+echo " Repo URL: $REPO_URL"
+echo " Branch Name: $BRANCH_NAME"
 
 timestamp=$(date +"%d_%m_%Y_%H_%M_%S")
 Report_name="demo_project_$timestamp"
 
-# Clone repository
+# Clone repo
 mkdir -p scanned_project
 cd scanned_project
 git clone "$REPO_URL"
 cd "$(basename "$REPO_URL" .git)"
 
-# Checkout specified branch if provided
 if [ -n "$BRANCH_NAME" ]; then
   git checkout "$BRANCH_NAME"
 fi
@@ -38,40 +44,40 @@ fi
 # Go back to root for consistent output directory path
 cd ../..
 
-# Create output directory
-mkdir -p report_output
+# Create output dir
+sudo mkdir -m 755 report_output
+sudo chmod -R 777 report_output
 
-# Configure Checkmarx AST CLI
-cx configure set --prop-name 'cx_base_uri' --prop-value 'https://deu.ast.checkmarx.net/'
-cx configure set --prop-name 'cx_base_auth_uri' --prop-value 'https://deu.iam.checkmarx.net/'
-cx configure set --prop-name 'cx_tenant' --prop-value 'cx-cs-na-pspoc'
-cx configure set --prop-name 'cx_apikey' --prop-value "eyJhbGciOiJIUzUxMiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICI0NmM5YThiYy0xYTliLTQyNjItOGRhNi1hM2M0MGE4YWJhMzYifQ.eyJpYXQiOjE3NDg5NTM2MjksImp0aSI6ImE0ZmJmZTZlLTc1NWUtNDRkMC04MWUyLTM1MDMwZDhjYjY1OSIsImlzcyI6Imh0dHBzOi8vZGV1LmlhbS5jaGVja21hcngubmV0L2F1dGgvcmVhbG1zL2N4LWNzLW5hLXBzcG9jIiwiYXVkIjoiaHR0cHM6Ly9kZXUuaWFtLmNoZWNrbWFyeC5uZXQvYXV0aC9yZWFsbXMvY3gtY3MtbmEtcHNwb2MiLCJzdWIiOiJlYTlmMDc0YS1j"
+# Configure AST CLI
+cx configure set --prop-name 'cx_base_uri' --prop-value '$CX_BASE_URL'
+cx configure set --prop-name 'cx_base_auth_uri' --prop-value '$CX_BASE_AUTH_URL'
+cx configure set --prop-name 'cx_tenant' --prop-value '$CX_TENANT_NAME'
+cx configure set --prop-name 'cx_apikey' --prop-value "$CX_API_KEY"
 
-# Run Checkmarx scan (outputs directly to ./report_output)
-echo "Running Checkmarx scan..."
+# Run scan (outputs directly to ./report_output)
+echo " Running Checkmarx scan..."
 if ! cx scan create --project-name "ado-project" --branch "$BRANCH_NAME" \
-  -s "$REPO_URL" --scan-types "sast, sca" \
+  -s "$REPO_URL" --scan-types "sast" --sast-incremental \
   --report-format json --report-format summaryHTML \
-  --output-name "ado-report" --output-path "./report_output" \
-  --report-pdf-email hiren.soni46@yahoo.com --report-pdf-options sast \
+  --output-name "$Report_name" --output-path "report_output" \
   --ignore-policy --debug; then
-  echo "cx scan failed"
+  echo " cx scan failed"
   exit 1
 fi
 
 # Debug output to verify reports were created
-echo "Listing contents of report_output:"
-ls -lh report_output || echo "report_output directory not found"
+echo " Listing contents of report_output:"
+ls -lh report_output || echo " report_output directory not found"
 
-echo "Searching for ado-report.* files..."
-find . -type f -name "ado-report*"
+echo " Searching for $Report_name.* files..."
+find report_output -type f -name "$Report_name.*"
 
 # Install msmtp and mutt for email
-echo "Installing msmtp and mutt..."
+echo " Installing msmtp and mutt..."
 sudo apt-get update && sudo apt-get install -y msmtp msmtp-mta mutt
 
 # Setup SMTP config
-echo "Configuring email settings..."
+echo " Configuring email settings..."
 cat <<EOF > ~/.msmtprc
 defaults
 auth on
@@ -79,25 +85,30 @@ tls on
 tls_trust_file /etc/ssl/certs/ca-certificates.crt
 logfile ~/.msmtp.log
 
-account gmail
-host smtp.gmail.com
-port 587
-from hirendhakan8080@gmail.com
-user hirendhakan8080@gmail.com
-password ndmrjelrrioqoiuk
+account $ACCOUNT
+host $HOST
+port $PORT
+from $SENDER_EMAIL
+user $SENDER_EMAIL_USERNAME
+password $SENDER_EMAIL_PASSWORD
 
-account default : gmail
+account default : $ACCOUNT_DEFAULT
 EOF
+
 chmod 600 ~/.msmtprc
 
-# Send the report if it exists
-REPORT_FILE="report_output/ado-report.summaryHTML"
+# === Smart Report Detection and Email ===
+echo " Looking for any summaryHTML report file in report_output/"
+REPORT_FILE=$(find report_output -type f -name "*.html" | head -n 1)
+
+
 if [[ -f "$REPORT_FILE" ]]; then
-  echo "Sending report via email..."
+ echo " Sending report via email: $REPORT_FILE"
   echo "This email includes an attachment of project summary." | mutt -s "Project Scan Summary" \
-    -a "$REPORT_FILE" -- hiren.soni46@yahoo.com
-  echo "Report sent successfully."
+   -a "$REPORT_FILE" -- $RECIPIENT_EMAIL
+  echo " Report sent successfully."
 else
-  echo "Report file not found at expected location: $REPORT_FILE"
+  echo
+  echo " Report file not found at expected location: report_output/html"
   echo "Skipping email."
 fi
