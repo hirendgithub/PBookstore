@@ -39,7 +39,7 @@ jobs:
 
       # Step 5: Run the Scan Script
       - name: Run Scan Script
-        run: bash ./git-secret-scanner.sh "https://github.com/hirendgithub/ADO-Project.git" "${{ github.head_ref || github.ref_name }}"
+        run: bash ./git-secret-scanner.sh "https://github.com/hirendgithub/PBookstore.git" "${{ github.head_ref || github.ref_name }}"
 
       # Step 6: Report the results
       - name: Report Scan Results
