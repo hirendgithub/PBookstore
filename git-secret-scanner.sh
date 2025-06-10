@@ -1,5 +1,6 @@
 #!/bin/bash
  
+git config --global core.autocrlf false
 set -e
 set -o pipefail
  
